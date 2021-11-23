@@ -1,112 +1,43 @@
-﻿using Core.Entities;
+﻿using ConsoleApp;
+using Core.Entities;
+using Core.Interfaces;
 using Core.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace HelloWorld
 {
     class Program
     {
-        public static MovieService movieService { get; set; }
+        static MovieService movieService { get; set; }
 
         static void Main(string[] args)
         {
-            Menu();
-        }
+            var builder = new ConfigurationBuilder();
+            BuildConfig(builder);
 
-        static void Menu()
-        {
-            Console.WriteLine("Administrator to CRUD Movie information.");
-            Console.WriteLine("[1].Create");
-            Console.WriteLine("[2].Read");
-            Console.WriteLine("[3].Update");
-            Console.WriteLine("[4].Delete");
-            Console.WriteLine("[5].Exit");
-            Console.WriteLine("");
-            int optionSelected = ChooseMenu(1, 5);
-            switch (optionSelected)
-            {
-                case 1:
-                    CreateMovie();
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        static int ChooseMenu(int min, int max)
-        {
-            int optionMenu = -1;
-            bool validateMenu = true;
-            while (validateMenu)
-            {
-                Console.Write("Type an option: ");
-                while (!int.TryParse(Console.ReadLine(), out optionMenu))
+            var host = Host.CreateDefaultBuilder()
+                .ConfigureServices((context, services) =>
                 {
-                    Console.Write("This is not valid input. Please enter an integer value: ");
-                }
-                if (optionMenu >= min && optionMenu <= max)
-                {
-                    validateMenu = false;
-                }
-                else
-                {
-                    Console.Write($"Please enter an integer value between {min}-{max}: ");
-                    validateMenu = true;
-                }
-            }
-            return optionMenu;
+                    services.Configure<YasserDatabaseSettings>(context.Configuration.GetSection(nameof(YasserDatabaseSettings)));
+                    services.AddSingleton<IYasserDatabaseSettings>(sp => sp.GetRequiredService<IOptions<YasserDatabaseSettings>>().Value);
+                    services.AddScoped<MovieService>();
+                    services.AddScoped<IMovie, MovieRepository>();
+                }).UseSerilog()
+                .Build();
+
+            var svc = ActivatorUtilities.CreateInstance<MovieUI>(host.Services);
+            svc.Menu();
         }
 
-        static async void CreateMovie()
+        static void BuildConfig(IConfigurationBuilder builder)
         {
-            Console.WriteLine("Type the following data to create the movie file:");
-            Console.WriteLine("");
-
-            Console.ForegroundColor = ConsoleColor.Yellow;
-
-            Movie movie = new Movie();
-            FillFile(movie);
-
-            Console.ForegroundColor = ConsoleColor.Gray;
-
-            bool result = await movieService.CreateMovie(movie);
-            Console.WriteLine("");
-
-            if (result)
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("The movie was created succesfully.");
-                Console.ForegroundColor = ConsoleColor.Gray;
-            }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("The movie was not created.");
-                Console.ForegroundColor = ConsoleColor.Gray;
-            }
-
-            Console.WriteLine("");
-            Console.WriteLine("Do you want to add another movie?");
-            Console.WriteLine("[1].Yes");
-            Console.WriteLine("[2].No");
-            Console.WriteLine("");
-            int optionSelected = ChooseMenu(1, 2);
-            switch (optionSelected)
-            {
-                case 1:
-                    CreateMovie();
-                    break;
-                case 2:
-                    Menu();
-                    break;
-                default:
-                    Menu();
-                    break;
-            }
-        }
-
-        static void FillFile(Movie movie)
-        {
-            throw new NotImplementedException();
+            builder.SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIOREMENT") ?? "Production"}.json", optional: true)
+                .AddEnvironmentVariables();
         }
     }
 }
